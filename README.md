@@ -1,17 +1,17 @@
-# Claude Code 中文教程
+# Claude Code中文教程
 
-[![HTML](https://img.shields.io/badge/HTML-standalone-orange)]()
-[![Claude](https://img.shields.io/badge/Claude-Code-blue)]()
+Claude Code不知道怎么用？
+**交互式教程帮你快速上手。**
 
-Claude Code 中文交互式教程。
+[![HTML](https://img.shields.io/badge/打开即用-无需安装-orange)]()
 
-## 功能
+## 不再"不会用"
 
-- **交互式课程**：图文并茂的教程内容
-- **Bilibili 嵌入**：视频教程无缝衔接
+- **交互式课程**：图文并茂教程内容
+- **Bilibili嵌入**：视频教程无缝衔接
 - **练习重置**：进度重置确认机制
-- **完整覆盖**：从入门到高级用法
+- **完整覆盖**：入门到高级用法
 
-## 使用
+## 怎么用
 
-打开 tutorial.html 即可使用。
+打开 `tutorial.html` → 按章节学习 → 完成练习
