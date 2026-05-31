@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code 交互式学习指南</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+<style>
+/* 视频嵌入容器 */
+.video-panel { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin: 12px 0; }
+.video-header { padding: 8px 12px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
+.video-container { padding: 12px; }
+.video-embed { width: 100%; aspect-ratio: 16/9; border-radius: 6px; }
+.video-link { font-size: 0.8em; color: #6366f1; }
+
+/* 自定义滚动条 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* 进度条动画 */
+.progress-bar { transition: width 0.3s ease; }
+
+/* 折叠面板动画 */
+.accordion-content { transition: max-height 0.3s ease; }
+
+/* 代码块样式 */
+code.inline-code { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+pre.code-block { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 0.9em; line-height: 1.5; margin: 12px 0; }
+
+/* 表格样式 */
+.content-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+.content-table th, .content-table td { border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left; }
+.content-table th { background: #f1f5f9; font-weight: 600; }
+
+/* 列表样式 */
+.content-ul { list-style: disc; padding-left: 24px; margin: 8px 0; }
+.content-ul li { margin: 4px 0; }
+.content-ol { list-style: decimal; padding-left: 24px; margin: 8px 0; }
+.content-ol li { margin: 4px 0; }
+
+/* 副标题可点击 */
+.subsection-title { transition: background 0.2s; }
+.subsection-title:hover { background: #f1f5f9; }
+
+/* 选中高亮 */
+.search-highlight { background: #fef08a; padding: 0 2px; border-radius: 2px; }
+
+/* 步骤指示器 */
+.step-indicator { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 9999px; font-weight: 700; font-size: 14px; flex-shrink: 0; }
+
+/* 自动滚动时的平滑效果 */
+html { scroll-behavior: smooth; }
+
+/* 侧边栏移动端隐藏 */
+@media (max-width: 768px) {
+  .sidebar.sidebar-open { transform: translateX(0); }
+  .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; position: fixed; z-index: 50; }
+}
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased">
+
+<!-- 顶部阅读进度条 -->
+<div id="progressBarContainer" class="fixed top-0 left-0 w-full h-1 bg-gray-200 z-50">
+  <div id="progressBar" class="progress-bar h-full bg-indigo-500" style="width:0%"></div>
+</div>
+
+<!-- 主布局 -->
+<div class="flex h-screen pt-1">
+
+  <!-- 移动端遮罩 -->
+  <div id="sidebarOverlay" class="fixed inset-0 bg-black/30 z-30 hidden md:hidden" onclick="toggleSidebar()"></div>
+
+  <!-- 左侧边栏 -->
+  <aside id="sidebar" class="sidebar w-72 bg-white border-r border-gray-200 flex-shrink-0 overflow-y-auto z-40 md:relative md:translate-x-0">
+    <div class="p-4 border-b border-gray-200">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fa fa-mortar-board text-indigo-600 text-xl"></i>
+          <h1 class="font-bold text-lg text-gray-800">Claude Code 指南</h1>
+        </div>
+        <button class="md:hidden text-gray-500 hover:text-gray-700" onclick="toggleSidebar()">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      <!-- 搜索框 -->
+      <div class="relative mt-3">
+        <i class="fa fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+        <input type="text" id="searchInput" placeholder="搜索教程内容..." class="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-transparent outline-none" oninput="handleSearch(this.value)">
+        <button id="searchClearBtn" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 hidden" onclick="clearSearch()">
+          <i class="fa fa-times-circle"></i>
+        </button>
+      </div>
+      <!-- 全局进度 -->
+      <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
+        <i class="fa fa-tasks"></i>
+        <span>学习进度：</span>
+        <span id="progressPercent">0%</span>
+        <div class="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div id="sidebarProgress" class="h-full bg-emerald-400 rounded-full" style="width:0%"></div>
+        </div>
+      </div>
+      <!-- 练习进度 -->
+      <div class="mt-2 flex items-center gap-2 text-xs text-gray-500">
+        <i class="fa fa-pencil-square-o"></i>
+        <span>练习进度：</span>
+        <span id="practiceProgressText">0/0</span>
+        <div class="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+          <div id="sidebarPracticeProgress" class="h-full bg-amber-400 rounded-full" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 目录树 -->
+    <nav class="p-2" id="chapterNav">
+      <!-- 由 JS 动态生成章节列表 -->
+    </nav>
+
+    <!-- 底部小工具入口 -->
+    <div class="border-t border-gray-200 p-3 space-y-1">
+      <button class="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 text-gray-600" onclick="openTab('shortcuts')">
+        <i class="fa fa-keyboard-o text-indigo-500"></i> 快捷键速查
+      </button>
+      <button class="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 text-gray-600" onclick="openTab('faq')">
+        <i class="fa fa-question-circle text-amber-500"></i> 常见问题 FAQ
+      </button>
+      <button class="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 text-gray-600" onclick="openTab('skillwizard')">
+        <i class="fa fa-magic text-emerald-500"></i> Skill 创建向导
+      </button>
+      <button class="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 text-gray-600" onclick="openTab('videos')">
+        <i class="fa fa-play-circle text-rose-500"></i> 视频教程
+      </button>
+      <button class="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 text-gray-600" onclick="resetProgress()">
+        <i class="fa fa-refresh text-red-400"></i> 重置进度
+      </button>
+      <button class="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg hover:bg-gray-100 text-gray-600" onclick="resetAllPractice()">
+        <i class="fa fa-eraser text-amber-400"></i> 重置练习
+      </button>
+    </div>
+  </aside>
+
+  <!-- 右侧主内容 -->
+  <main id="mainContent" class="flex-1 overflow-y-auto bg-gray-50">
+    <div class="max-w-4xl mx-auto px-4 md:px-8 py-6">
+      <!-- 移动端菜单按钮 -->
+      <button class="md:hidden mb-4 flex items-center gap-2 text-sm text-gray-600 bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm" onclick="toggleSidebar()">
+        <i class="fa fa-bars"></i> 目录
+      </button>
+
+      <!-- 欢迎页 -->
+      <div id="page-welcome" class="page-section">
+        <div class="text-center py-12">
+          <i class="fa fa-mortar-board text-6xl text-indigo-500 mb-6"></i>
+          <h2 class="text-3xl font-bold text-gray-800 mb-4">Claude Code 学习指南</h2>
+          <p class="text-gray-500 text-lg max-w-xl mx-auto mb-8">从入门到精通，掌握 AI 辅助编程的全流程技能</p>
+          <div class="flex flex-wrap justify-center gap-4 mb-12">
+            <span class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-full text-sm font-medium">5 个章节</span>
+            <span class="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-full text-sm font-medium">30+ 知识点</span>
+            <span class="bg-amber-100 text-amber-700 px-4 py-2 rounded-full text-sm font-medium">交互式学习</span>
+          </div>
+
+          <!-- 快速入口卡片 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-left">
+            <div class="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow cursor-pointer" onclick="scrollToChapter(1)">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center"><i class="fa fa-rocket text-indigo-600"></i></div>
+                <div><h3 class="font-semibold">快速入门</h3><p class="text-xs text-gray-400">安装配置与基础操作</p></div>
+              </div>
+              <div class="flex items-center gap-2 text-sm"><span class="w-2 h-2 rounded-full bg-indigo-400"></span><span class="text-gray-500">安装、登录、基础配置</span></div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow cursor-pointer" onclick="scrollToChapter(2)">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center"><i class="fa fa-cogs text-emerald-600"></i></div>
+                <div><h3 class="font-semibold">核心功能</h3><p class="text-xs text-gray-400">对话、编辑与文件操作</p></div>
+              </div>
+              <div class="flex items-center gap-2 text-sm"><span class="w-2 h-2 rounded-full bg-emerald-400"></span><span class="text-gray-500">对话模式、代码编辑、项目管理</span></div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow cursor-pointer" onclick="scrollToChapter(3)">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center"><i class="fa fa-puzzle-piece text-amber-600"></i></div>
+                <div><h3 class="font-semibold">Skill 系统</h3><p class="text-xs text-gray-400">扩展包定义与自定义</p></div>
+              </div>
+              <div class="flex items-center gap-2 text-sm"><span class="w-2 h-2 rounded-full bg-amber-400"></span><span class="text-gray-500">Skill 结构、创建、加载</span></div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow cursor-pointer" onclick="scrollToChapter(4)">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center"><i class="fa fa-flask text-purple-600"></i></div>
+                <div><h3 class="font-semibold">高级技巧</h3><p class="text-xs text-gray-400">批量操作与自动化</p></div>
+              </div>
+              <div class="flex items-center gap-2 text-sm"><span class="w-2 h-2 rounded-full bg-purple-400"></span><span class="text-gray-500">Hook 系统、Cron、性能优化</span></div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow cursor-pointer" onclick="scrollToChapter(5)">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center"><i class="fa fa-star text-rose-600"></i></div>
+                <div><h3 class="font-semibold">最佳实践</h3><p class="text-xs text-gray-400">效率技巧与工作流</p></div>
+              </div>
+              <div class="flex items-center gap-2 text-sm"><span class="w-2 h-2 rounded-full bg-rose-400"></span><span class="text-gray-500">效率技巧、团队协作、常见问题</span></div>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow cursor-pointer" onclick="openTab('shortcuts')">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center"><i class="fa fa-keyboard-o text-cyan-600"></i></div>
+                <div><h3 class="font-semibold">快捷键速查</h3><p class="text-xs text-gray-400">常用快捷键一览</p></div>
+              </div>
+              <div class="flex items-center gap-2 text-sm"><span class="w-2 h-2 rounded-full bg-cyan-400"></span><span class="text-gray-500">Cmd+I、Cmd+Enter、Cmd+K</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 章节内容容器 -->
+      <div id="chapterContent" class="hidden">
+        <!-- 由 JS 渲染 -->
+      </div>
+
+      <!-- 快捷键页面 -->
+      <div id="page-shortcuts" class="page-section hidden">
+        <h2 class="text-2xl font-bold text-gray-800 mb-2"><i class="fa fa-keyboard-o text-indigo-500 mr-2"></i>快捷键速查表</h2>
+        <p class="text-gray-500 mb-6">Claude Code 的常用快捷键，提升你的操作效率</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 class="font-semibold text-gray-700 mb-3"><i class="fa fa-commenting text-indigo-500 mr-2"></i>对话操作</h3>
+            <div class="space-y-2">
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>打开 Claude Code 面板</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+I</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>发送消息</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+Enter</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>清除对话</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+K</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>撤销上次操作</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+Z</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>撤销上一步 Claude 操作</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+[</kbd></div>
+            </div>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 class="font-semibold text-gray-700 mb-3"><i class="fa fa-file-code-o text-emerald-500 mr-2"></i>编辑操作</h3>
+            <div class="space-y-2">
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>接受建议</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Tab</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>拒绝建议</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Esc</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>保存文件</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+S</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>切换 diff 视图</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+D</kbd></div>
+            </div>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 class="font-semibold text-gray-700 mb-3"><i class="fa fa-navicon text-amber-500 mr-2"></i>导航操作</h3>
+            <div class="space-y-2">
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>聚焦输入框</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+L</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>切换侧边栏</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+B</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>打开文件</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+P</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>全局搜索</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+Shift+F</kbd></div>
+            </div>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-xl p-5">
+            <h3 class="font-semibold text-gray-700 mb-3"><i class="fa fa-terminal text-purple-500 mr-2"></i>终端操作</h3>
+            <div class="space-y-2">
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>打开终端</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Ctrl+`</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>中断运行</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Ctrl+C</kbd></div>
+              <div class="flex justify-between items-center py-2 px-3 bg-gray-50 rounded-lg"><span>新终端窗口</span><kbd class="bg-gray-200 px-2 py-1 rounded text-sm font-mono">Cmd+Shift+`</kbd></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 bg-indigo-50 border border-indigo-200 rounded-xl p-5">
+          <h3 class="font-semibold text-indigo-800 mb-2"><i class="fa fa-lightbulb-o"></i> 提示</h3>
+          <p class="text-indigo-700 text-sm">在 VS Code 中，你可以通过 <code class="bg-indigo-100 px-1 rounded">首选项 > 键盘快捷方式</code> 自定义所有快捷键绑定。</p>
+        </div>
+      </div>
+
+      <!-- FAQ 页面 -->
+      <div id="page-faq" class="page-section hidden">
+        <h2 class="text-2xl font-bold text-gray-800 mb-2"><i class="fa fa-question-circle text-amber-500 mr-2"></i>常见问题 FAQ</h2>
+        <p class="text-gray-500 mb-6">使用 Claude Code 过程中遇到的问题与解答</p>
+
+        <div class="space-y-3" id="faqList">
+          <div class="faq-item bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <button class="faq-question w-full flex items-center justify-between p-4 text-left font-medium text-gray-700 hover:bg-gray-50" onclick="toggleFaq(this)">
+              <span>Claude Code 无法理解我的项目结构怎么办？</span>
+              <i class="fa fa-chevron-down text-gray-400 transition-transform"></i>
+            </button>
+            <div class="faq-answer hidden px-4 pb-4 text-gray-600 text-sm leading-relaxed border-t border-gray-100 pt-3">
+              <p>可以尝试以下方法：</p>
+              <ul class="content-ul">
+                <li>确保项目根目录有清晰的 <code class="inline-code">README</code></li>
+                <li>使用 <code class="inline-code">#file:</code> 显式引用关键文件</li>
+                <li>运行 <code class="inline-code">claude index</code> 重建项目索引</li>
+              </ul>
+            </div>
+          </div>
+          <div class="faq-item bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <button class="faq-question w-full flex items-center justify-between p-4 text-left font-medium text-gray-700 hover:bg-gray-50" onclick="toggleFaq(this)">
+              <span>如何从错误的操作中恢复？</span>
+              <i class="fa fa-chevron-down text-gray-400 transition-transform"></i>
+            </button>
+            <div class="faq-answer hidden px-4 pb-4 text-gray-600 text-sm leading-relaxed border-t border-gray-100 pt-3">
+              <p>Claude Code 支持操作撤销：</p>
+              <ul class="content-ul">
+                <li>使用快捷键 <kbd class="bg-gray-200 px-1.5 py-0.5 rounded text-xs font-mono">Cmd+Z</kbd> 撤销上一次更改</li>
+                <li>在对话中输入 <code class="inline-code">撤销刚才的修改</code></li>
+                <li>或输入 <code class="inline-code">恢复到上一个版本</code></li>
+              </ul>
+            </div>
+          </div>
+          <div class="faq-item bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <button class="faq-question w-full flex items-center justify-between p-4 text-left font-medium text-gray-700 hover:bg-gray-50" onclick="toggleFaq(this)">
+              <span>如何处理大型代码库（上下文溢出、响应缓慢）？</span>
+              <i class="fa fa-chevron-down text-gray-400 transition-transform"></i>
+            </button>
+            <div class="faq-answer hidden px-4 pb-4 text-gray-600 text-sm leading-relaxed border-t border-gray-100 pt-3">
+              <div class="content-table-wrapper overflow-x-auto">
+                <table class="content-table">
+                  <thead><tr><th>问题</th><th>解决方案</th></tr></thead>
+                  <tbody>
+                    <tr><td>上下文溢出</td><td>分模块处理，每次专注一个目录</td></tr>
+                    <tr><td>响应缓慢</td><td>使用 <code class="inline-code">.claudeignore</code> 排除非必要文件</td></tr>
+                    <tr><td>结果不准确</td><td>提供更精确的文件路径和上下文</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="faq-item bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <button class="faq-question w-full flex items-center justify-between p-4 text-left font-medium text-gray-700 hover:bg-gray-50" onclick="toggleFaq(this)">
+              <span>如何保护敏感信息不被泄露？</span>
+              <i class="fa fa-chevron-down text-gray-400 transition-transform"></i>
+            </button>
+            <div class="faq-answer hidden px-4 pb-4 text-gray-600 text-sm leading-relaxed border-t border-gray-100 pt-3">
+              <ul class="content-ul">
+                <li>不在对话中暴露 API Key 和密码</li>
+                <li>使用环境变量管理敏感信息</li>
+                <li>审核 Claude Code 建议的代码变更</li>
+                <li>配置权限控制限制工具使用范围</li>
+              </ul>
+            </div>
+          </div>
+          <div class="faq-item bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <button class="faq-question w-full flex items-center justify-between p-4 text-left font-medium text-gray-700 hover:bg-gray-50" onclick="toggleFaq(this)">
+              <span>如何在团队中统一 Claude Code 配置？</span>
+              <i class="fa fa-chevron-down text-gray-400 transition-transform"></i>
+            </button>
+            <div class="faq-answer hidden px-4 pb-4 text-gray-600 text-sm leading-relaxed border-t border-gray-100 pt-3">
+              <p>在项目根目录维护 <code class="inline-code">.claude/settings.json</code>，通过 Git 分享给团队成员。配置示例：</p>
+              <pre class="code-block">{
+  "language": "zh-CN",
+  "customInstructions": "遵循团队的编码规范",
+  "hooks": {
+    "pre-commit": ["npm run lint:fix"]
+  }
+}</pre>
+            </div>
+          </div>
+          <div class="faq-item bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <button class="faq-question w-full flex items-center justify-between p-4 text-left font-medium text-gray-700 hover:bg-gray-50" onclick="toggleFaq(this)">
+              <span>Skill 有哪几种类型？如何选择？</span>
+              <i class="fa fa-chevron-down text-gray-400 transition-transform"></i>
+            </button>
+            <div class="faq-answer hidden px-4 pb-4 text-gray-600 text-sm leading-relaxed border-t border-gray-100 pt-3">
+              <div class="content-table-wrapper overflow-x-auto">
+                <table class="content-table">
+                  <thead><tr><th>类型</th><th>用途</th><th>示例</th></tr></thead>
+                  <tbody>
+                    <tr><td>语言专家</td><td>编程语言指导</td><td>python-expert</td></tr>
+                    <tr><td>框架专家</td><td>框架使用指导</td><td>react-expert</td></tr>
+                    <tr><td>调试专家</td><td>Bug 定位与修复</td><td>debug-master</td></tr>
+                    <tr><td>架构师</td><td>系统设计</td><td>solution-architect</td></tr>
+                    <tr><td>审阅者</td><td>代码审查</td><td>code-reviewer</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="faq-item bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <button class="faq-question w-full flex items-center justify-between p-4 text-left font-medium text-gray-700 hover:bg-gray-50" onclick="toggleFaq(this)">
+              <span>Claude Code 支持定时任务吗？</span>
+              <i class="fa fa-chevron-down text-gray-400 transition-transform"></i>
+            </button>
+            <div class="faq-answer hidden px-4 pb-4 text-gray-600 text-sm leading-relaxed border-t border-gray-100 pt-3">
+              <p>支持。你可以配置 Hook 或描述定时需求让 Claude 执行：</p>
+              <pre class="code-block"># 例：每天早上9点检查依赖更新
+> 每天 9:00 检查 package.json 依赖版本</pre>
+              <p>常用 Cron 模式：</p>
+              <div class="content-table-wrapper overflow-x-auto">
+                <table class="content-table">
+                  <thead><tr><th>表达式</th><th>说明</th></tr></thead>
+                  <tbody>
+                    <tr><td><code class="inline-code">0 9 * * *</code></td><td>每天早上9点</td></tr>
+                    <tr><td><code class="inline-code">*/30 * * * *</code></td><td>每30分钟</td></tr>
+                    <tr><td><code class="inline-code">0 0 * * 1</code></td><td>每周一凌晨</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 视频教程页面 -->
+      <div id="page-videos" class="page-section hidden">
+        <h2 class="text-2xl font-bold text-gray-800 mb-2"><i class="fa fa-play-circle text-rose-500 mr-2"></i>视频教程</h2>
+        <p class="text-gray-500 mb-6">B站视频教程，配合文档学习效果更好</p>
+
+        <div class="space-y-4" id="videoList">
+          <div class="video-panel">
+            <div class="video-header">
+              <span class="font-medium text-gray-700"><i class="fa fa-rocket text-indigo-500 mr-2"></i>快速入门 - Claude Code 安装与配置</span>
+              <a href="https://www.bilibili.com/video/BV1example1" target="_blank" class="video-link"><i class="fa fa-external-link mr-1"></i>B站原链接</a>
+            </div>
+            <div class="video-container">
+              <iframe class="video-embed" src="//player.bilibili.com/player.html?bvid=BV1example1&page=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+            </div>
+          </div>
+          <div class="video-panel">
+            <div class="video-header">
+              <span class="font-medium text-gray-700"><i class="fa fa-cogs text-emerald-500 mr-2"></i>核心功能 - 对话模式详解</span>
+              <a href="https://www.bilibili.com/video/BV1example2" target="_blank" class="video-link"><i class="fa fa-external-link mr-1"></i>B站原链接</a>
+            </div>
+            <div class="video-container">
+              <iframe class="video-embed" src="//player.bilibili.com/player.html?bvid=BV1example2&page=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+            </div>
+          </div>
+          <div class="video-panel">
+            <div class="video-header">
+              <span class="font-medium text-gray-700"><i class="fa fa-puzzle-piece text-amber-500 mr-2"></i>Skill系统 - 创建自定义Skill</span>
+              <a href="https://www.bilibili.com/video/BV1example3" target="_blank" class="video-link"><i class="fa fa-external-link mr-1"></i>B站原链接</a>
+            </div>
+            <div class="video-container">
+              <iframe class="video-embed" src="//player.bilibili.com/player.html?bvid=BV1example3&page=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 bg-rose-50 border border-rose-200 rounded-xl p-5">
+          <h3 class="font-semibold text-rose-800 mb-2"><i class="fa fa-lightbulb-o"></i> 使用提示</h3>
+          <p class="text-rose-700 text-sm">视频链接为示例，可替换为实际B站视频BV号。修改方式：找到videoList中的iframe，将bvid参数改为实际视频BV号。</p>
+          <button onclick="openAddVideoModal()" class="mt-3 bg-rose-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-rose-700"><i class="fa fa-plus mr-1"></i>添加视频</button>
+        </div>
+
+        <!-- 添加视频弹窗 -->
+        <div id="addVideoModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center">
+          <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <h3 class="font-bold text-gray-800 mb-4"><i class="fa fa-plus-circle text-rose-500 mr-2"></i>添加B站视频</h3>
+            <div class="space-y-3">
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">视频BV号</label>
+                <input type="text" id="videoBvidInput" placeholder="如：BV1abc123" class="w-full border rounded-lg p-2 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">视频标题</label>
+                <input type="text" id="videoTitleInput" placeholder="如：Claude Code入门教程" class="w-full border rounded-lg p-2 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">关联章节</label>
+                <select id="videoChapterInput" class="w-full border rounded-lg p-2 text-sm">
+                  <option value="rocket">快速入门</option>
+                  <option value="cogs">核心功能</option>
+                  <option value="puzzle-piece">Skill系统</option>
+                  <option value="flask">高级技巧</option>
+                  <option value="star">最佳实践</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-4">
+              <button onclick="closeAddVideoModal()" class="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">取消</button>
+              <button onclick="addVideo()" class="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700">添加</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Skill 创建向导 -->
+      <div id="page-skillwizard" class="page-section hidden">
+        <h2 class="text-2xl font-bold text-gray-800 mb-2"><i class="fa fa-magic text-emerald-500 mr-2"></i>Skill 创建向导</h2>
+        <p class="text-gray-500 mb-6">选择类型、填写信息，自动生成 SKILL.md 文件</p>
+
+        <div class="bg-white border border-gray-200 rounded-xl p-6">
+          <div class="flex items-center justify-center gap-0 mb-8">
+            <div class="flex items-center">
+              <div class="step-indicator bg-indigo-600 text-white" id="step1Indicator">1</div>
+              <span class="ml-2 text-sm font-medium text-indigo-600" id="step1Label">选择类型</span>
+            </div>
+            <div class="w-12 h-px bg-gray-300 mx-3"></div>
+            <div class="flex items-center">
+              <div class="step-indicator bg-gray-300 text-gray-500" id="step2Indicator">2</div>
+              <span class="ml-2 text-sm font-medium text-gray-400" id="step2Label">填写信息</span>
+            </div>
+            <div class="w-12 h-px bg-gray-300 mx-3"></div>
+            <div class="flex items-center">
+              <div class="step-indicator bg-gray-300 text-gray-500" id="step3Indicator">3</div>
+              <span class="ml-2 text-sm font-medium text-gray-400" id="step3Label">生成代码</span>
+            </div>
+          </div>
+
+          <!-- 步骤 1：选择类型 -->
+          <div id="wizardStep1">
+            <h3 class="font-semibold text-gray-700 mb-4">选择 Skill 类型</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+              <div class="skill-type-card border-2 border-gray-200 rounded-xl p-4 cursor-pointer hover:border-indigo-400 transition-colors" data-type="language" onclick="selectSkillType(this, 'language')">
+                <i class="fa fa-code text-indigo-500 text-xl mb-2"></i>
+                <h4 class="font-medium text-gray-800">语言专家</h4>
+                <p class="text-xs text-gray-500">编程语言指导</p>
+              </div>
+              <div class="skill-type-card border-2 border-gray-200 rounded-xl p-4 cursor-pointer hover:border-indigo-400 transition-colors" data-type="framework" onclick="selectSkillType(this, 'framework')">
+                <i class="fa fa-cubes text-emerald-500 text-xl mb-2"></i>
+                <h4 class="font-medium text-gray-800">框架专家</h4>
+                <p class="text-xs text-gray-500">框架使用指导</p>
+              </div>
+              <div class="skill-type-card border-2 border-gray-200 rounded-xl p-4 cursor-pointer hover:border-indigo-400 transition-colors" data-type="debug" onclick="selectSkillType(this, 'debug')">
+                <i class="fa fa-bug text-rose-500 text-xl mb-2"></i>
+                <h4 class="font-medium text-gray-800">调试专家</h4>
+                <p class="text-xs text-gray-500">Bug 定位与修复</p>
+              </div>
+              <div class="skill-type-card border-2 border-gray-200 rounded-xl p-4 cursor-pointer hover:border-indigo-400 transition-colors" data-type="architect" onclick="selectSkillType(this, 'architect')">
+                <i class="fa fa-sitemap text-purple-500 text-xl mb-2"></i>
+                <h4 class="font-medium text-gray-800">架构师</h4>
+                <p class="text-xs text-gray-500">系统设计</p>
+              </div>
+              <div class="skill-type-card border-2 border-gray-200 rounded-xl p-4 cursor-pointer hover:border-indigo-400 transition-colors" data-type="reviewer" onclick="selectSkillType(this, 'reviewer')">
+                <i class="fa fa-eye text-amber-500 text-xl mb-2"></i>
+                <h4 class="font-medium text-gray-800">审阅者</h4>
+                <p class="text-xs text-gray-500">代码审查</p>
+              </div>
+              <div class="skill-type-card border-2 border-gray-200 rounded-xl p-4 cursor-pointer hover:border-indigo-400 transition-colors" data-type="custom" onclick="selectSkillType(this, 'custom')">
+                <i class="fa fa-pencil-square-o text-cyan-500 text-xl mb-2"></i>
+                <h4 class="font-medium text-gray-800">自定义</h4>
+                <p class="text-xs text-gray-500">自由定义类型</p>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <button class="px-6 py-2 bg-gray-200 text-gray-500 rounded-lg cursor-not-allowed font-medium" id="step1NextBtn" disabled>请先选择类型</button>
+            </div>
+          </div>
+
+          <!-- 步骤 2：填写信息 -->
+          <div id="wizardStep2" class="hidden">
+            <h3 class="font-semibold text-gray-700 mb-4">填写 Skill 信息</h3>
+            <div class="space-y-4 mb-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Skill 名称 <span class="text-red-400">*</span></label>
+                <input type="text" id="skillNameInput" placeholder="例：my-skill、python-expert" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-transparent outline-none text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">描述 <span class="text-red-400">*</span></label>
+                <input type="text" id="skillDescInput" placeholder="简短描述 Skill 的功能" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-transparent outline-none text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">角色定位</label>
+                <textarea id="skillRoleInput" rows="3" placeholder="例：你是一位经验丰富的 Python 开发专家，精通异步编程、性能优化和最佳实践..." class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-transparent outline-none text-sm"></textarea>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">工作流程（每行一步）</label>
+                <textarea id="skillWorkflowInput" rows="4" placeholder="1. 分析用户提供的代码&#10;2. 识别潜在问题和优化空间&#10;3. 提出具体改进建议&#10;4. 生成优化后的代码" class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-400 focus:border-transparent outline-none text-sm"></textarea>
+              </div>
+            </div>
+            <div class="flex justify-between">
+              <button class="px-6 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium" onclick="wizardPrevStep()">上一步</button>
+              <button class="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium" onclick="wizardGenerate()">生成 SKILL.md</button>
+            </div>
+          </div>
+
+          <!-- 步骤 3：生成结果 -->
+          <div id="wizardStep3" class="hidden">
+            <h3 class="font-semibold text-gray-700 mb-2">生成的 SKILL.md</h3>
+            <p class="text-sm text-gray-500 mb-4">复制以下代码保存为 <code class="inline-code">SKILL.md</code> 文件</p>
+            <pre id="skillOutput" class="code-block text-sm" style="max-height:400px; overflow-y:auto"></pre>
+            <div class="flex justify-between mt-4">
+              <button class="px-6 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium" onclick="wizardPrevStep()">上一步</button>
+              <button class="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium" onclick="copySkillOutput()"><i class="fa fa-copy mr-1"></i> 复制代码</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部 -->
+      <div class="border-t border-gray-200 mt-12 pt-6 pb-8 text-center text-sm text-gray-400">
+        <p>Claude Code 交互式学习指南 · 教程内容基于官方文档整理</p>
+        <p class="mt-1">使用 <i class="fa fa-heart text-red-400"></i> 与 Tailwind CSS 构建</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ========== 教程数据 ==========
+const CHAPTERS = [
+  {
+    id: 1, title: '快速入门', icon: 'rocket', color: 'indigo',
+    subs: [
+      { id: 'c1s1', title: '安装与配置', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">安装 Claude Code</h3>
+        <pre class="code-block"># 命令行安装
+npm install -g @anthropic-ai/claude-code
+
+# 初始化
+claude init</pre>
+        <p class="text-gray-600 mb-2">也可以直接在 VS Code 插件商店搜索 "Claude Code" 安装。</p>
+      `},
+      { id: 'c1s2', title: '基础操作', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">对话与文件操作</h3>
+        <p class="text-gray-600 mb-3">直接在 Claude Code 面板输入问题或指令：</p>
+        <ul class="content-ul">
+          <li><code class="inline-code">解释这段代码</code> — 代码理解</li>
+          <li><code class="inline-code">优化这个函数</code> — 代码优化</li>
+          <li><code class="inline-code">帮我写一个单元测试</code> — 测试生成</li>
+        </ul>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">文件操作</h4>
+        <pre class="code-block"># 创建文件
+> 创建 src/utils.ts
+
+# 编辑文件
+> 在 login.ts 中添加表单验证
+
+# 读取文件
+> 读取 package.json 的依赖配置</pre>
+      `},
+      { id: 'c1s3', title: 'Skill 系统基础', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">加载与创建 Skill</h3>
+        <pre class="code-block"># 列出可用 Skill
+claude skill list
+
+# 加载指定 Skill
+claude skill load python-expert
+
+# 创建自定义 Skill
+claude skill create my-skill</pre>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">Skill 文件结构</h4>
+        <pre class="code-block">my-skill.skill/
+├── SKILL.md          # 核心定义
+├── assets/           # 资源文件
+└── templates/        # 模板</pre>
+      `},
+      { id: 'c1s4', title: '工作流示例', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">代码审查</h3>
+        <ol class="content-ol">
+          <li>加载代码审查 Skill</li>
+          <li>粘贴代码或指定文件</li>
+          <li>自动分析并输出结果</li>
+        </ol>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">Bug 修复</h4>
+        <ol class="content-ol">
+          <li>描述 Bug 现象</li>
+          <li>Claude 定位问题代码</li>
+          <li>建议修复方案</li>
+          <li>确认后自动应用修改</li>
+        </ol>
+      `},
+      { id: 'c1s5', title: '进阶技巧', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">提升效率</h3>
+        <ul class="content-ul">
+          <li><strong>上下文管理</strong>：用 <code class="inline-code">#file:path</code> 引用文件</li>
+          <li><strong>批量操作</strong>：一次处理整个目录</li>
+          <li><strong>自动化</strong>：组合多个指令形成流水线</li>
+        </ul>
+      `}
+    ]
+  },
+  {
+    id: 2, title: '核心功能', icon: 'cogs', color: 'emerald',
+    subs: [
+      { id: 'c2s1', title: '对话模式', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">三种对话模式</h3>
+        <div class="space-y-3">
+          <div class="bg-gray-50 rounded-lg p-4 border border-gray-100">
+            <h4 class="font-medium text-gray-700">自由对话</h4>
+            <p class="text-sm text-gray-500 mt-1">最基础的模式，可以问任何编程问题</p>
+            <pre class="code-block mt-2 text-sm">解释 React 的 useEffect 和 useLayoutEffect 的区别</pre>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 border border-gray-100">
+            <h4 class="font-medium text-gray-700">上下文对话</h4>
+            <p class="text-sm text-gray-500 mt-1">引用项目中的文件进行针对性讨论</p>
+            <pre class="code-block mt-2 text-sm">#file:src/auth.ts 中的登录逻辑有安全漏洞吗？</pre>
+          </div>
+          <div class="bg-gray-50 rounded-lg p-4 border border-gray-100">
+            <h4 class="font-medium text-gray-700">多文件对话</h4>
+            <p class="text-sm text-gray-500 mt-1">同时引用多个文件进行分析</p>
+            <pre class="code-block mt-2 text-sm">比较 #file:src/v1/api.ts 和 #file:src/v2/api.ts 的差异</pre>
+          </div>
+        </div>
+      `},
+      { id: 'c2s2', title: '代码编辑', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">编辑操作</h3>
+        <div class="content-table-wrapper overflow-x-auto">
+          <table class="content-table">
+            <thead><tr><th>操作</th><th>示例</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>修改函数</td><td><code class="inline-code">优化 utils.ts 中的 formatDate 函数</code></td><td>精准定位</td></tr>
+              <tr><td>添加功能</td><td><code class="inline-code">在 user.ts 中添加密码重置功能</code></td><td>扩展现有代码</td></tr>
+              <tr><td>重构</td><td><code class="inline-code">将这个类重构为函数式组件</code></td><td>架构调整</td></tr>
+              <tr><td>修复 Bug</td><td><code class="inline-code">修复登录页面的 CSRF 漏洞</code></td><td>安全修复</td></tr>
+            </tbody>
+          </table>
+        </div>
+      `},
+      { id: 'c2s3', title: '文件操作能力', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">文件级操作</h3>
+        <pre class="code-block"># 创建目录结构
+> 创建 src/components/Button.tsx
+
+# 批量重命名
+> 将所有 .js 文件重命名为 .ts
+
+# 搜索文件内容
+> 搜索所有文件中包含 "apiKey" 的行</pre>
+      `},
+      { id: 'c2s4', title: '项目管理', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">项目初始化</h3>
+        <pre class="code-block">创建一个 React + TypeScript 项目，包含登录注册功能</pre>
+        <p class="text-gray-600 mt-2">Claude Code 会自动：</p>
+        <ol class="content-ol">
+          <li>初始化 package.json</li>
+          <li>安装依赖</li>
+          <li>创建目录结构</li>
+          <li>生成基础代码</li>
+        </ol>
+      `},
+      { id: 'c2s5', title: '调试与版本控制', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">调试支持</h3>
+        <pre class="code-block"># 查看编译错误
+> 运行 tsc 并帮我修复所有类型错误
+
+# 测试失败分析
+> 运行测试并分析失败原因</pre>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">版本控制集成</h4>
+        <pre class="code-block"># 查看当前变更
+> git diff 查看我的改动
+
+# 生成提交信息
+> 根据暂存区的改动生成 commit message</pre>
+      `}
+    ]
+  },
+  {
+    id: 3, title: 'Skill 系统', icon: 'puzzle-piece', color: 'amber',
+    subs: [
+      { id: 'c3s1', title: '什么是 Skill', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">Skill 概述</h3>
+        <p class="text-gray-600">Skill 是 Claude Code 的能力扩展包，定义了特定场景下的行为模式、知识库和工作流程。</p>
+      `},
+      { id: 'c3s2', title: 'Skill 结构', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">文件结构</h3>
+        <pre class="code-block">my-skill.skill/
+├── SKILL.md        # 核心定义（必需）
+├── assets/         # 图片、数据等资源
+├── templates/      # 输出模板
+└── examples/       # 使用示例</pre>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">SKILL.md 格式</h4>
+        <pre class="code-block">---
+name: my-skill
+description: 技能描述
+version: 1.0.0
+model: claude-4
+---
+
+# 角色定位
+
+你是一位...
+
+## 触发条件
+
+当用户问到...时激活
+
+## 工作流程
+
+1. 第一步...
+2. 第二步...</pre>
+      `},
+      { id: 'c3s3', title: 'Skill 类型', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">常用 Skill 类型</h3>
+        <div class="content-table-wrapper overflow-x-auto">
+          <table class="content-table">
+            <thead><tr><th>类型</th><th>用途</th><th>示例</th></tr></thead>
+            <tbody>
+              <tr><td>语言专家</td><td>编程语言指导</td><td>python-expert</td></tr>
+              <tr><td>框架专家</td><td>框架使用指导</td><td>react-expert</td></tr>
+              <tr><td>调试专家</td><td>Bug 定位与修复</td><td>debug-master</td></tr>
+              <tr><td>架构师</td><td>系统设计</td><td>solution-architect</td></tr>
+              <tr><td>审阅者</td><td>代码审查</td><td>code-reviewer</td></tr>
+            </tbody>
+          </table>
+        </div>
+      `},
+      { id: 'c3s4', title: '加载与管理', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">Skill 管理命令</h3>
+        <pre class="code-block"># 加载
+claude skill load react-expert
+
+# 查看当前 Skill
+claude skill current
+
+# 卸载
+claude skill unload
+
+# 列出所有 Skill
+claude skill list</pre>
+      `},
+      { id: 'c3s5', title: '最佳实践', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">Skill 设计原则</h3>
+        <ol class="content-ol">
+          <li><strong>单一职责</strong>：每个 Skill 只做一件事</li>
+          <li><strong>明确触发</strong>：清晰定义激活条件</li>
+          <li><strong>模板化输出</strong>：统一输出格式</li>
+          <li><strong>版本管理</strong>：记录变更历史</li>
+        </ol>
+      `}
+    ]
+  },
+  {
+    id: 4, title: '高级技巧', icon: 'flask', color: 'purple',
+    subs: [
+      { id: 'c4s1', title: '批量操作', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">多文件处理</h3>
+        <pre class="code-block"># 批量编辑多个文件
+> 给 src/components/ 下所有 .tsx 文件添加 import React from 'react'
+
+# 全局搜索替换
+> 将项目中所有 console.log 替换为 logger.info
+
+# 重构目录结构
+> 将 src/utils/ 中的所有工具函数按主题拆分到独立文件</pre>
+      `},
+      { id: 'c4s2', title: 'Hook 系统', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">生命周期 Hook</h3>
+        <p class="text-gray-600 mb-3">Claude Code 支持在特定事件触发时自动执行脚本：</p>
+        <div class="content-table-wrapper overflow-x-auto">
+          <table class="content-table">
+            <thead><tr><th>Hook</th><th>触发时机</th><th>用途</th></tr></thead>
+            <tbody>
+              <tr><td><code class="inline-code">pre-tool</code></td><td>工具调用前</td><td>权限校验、日志记录</td></tr>
+              <tr><td><code class="inline-code">post-tool</code></td><td>工具调用后</td><td>结果验证、通知</td></tr>
+              <tr><td><code class="inline-code">pre-commit</code></td><td>提交前</td><td>代码检查、测试运行</td></tr>
+              <tr><td><code class="inline-code">post-commit</code></td><td>提交后</td><td>部署触发</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">配置示例</h4>
+        <pre class="code-block">// .claude/settings.json
+{
+  "hooks": {
+    "pre-commit": ["npm run lint", "npm test"],
+    "post-commit": ["npm run build"]
+  }
+}</pre>
+      `},
+      { id: 'c4s3', title: 'Cron 定时任务', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">计划任务</h3>
+        <pre class="code-block"># 每天早上9点检查依赖更新
+> 每天 9:00 检查 package.json 依赖版本</pre>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">常用 Cron 模式</h4>
+        <div class="content-table-wrapper overflow-x-auto">
+          <table class="content-table">
+            <thead><tr><th>表达式</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td><code class="inline-code">0 9 * * *</code></td><td>每天早上9点</td></tr>
+              <tr><td><code class="inline-code">*/30 * * * *</code></td><td>每30分钟</td></tr>
+              <tr><td><code class="inline-code">0 0 * * 1</code></td><td>每周一凌晨</td></tr>
+            </tbody>
+          </table>
+        </div>
+      `},
+      { id: 'c4s4', title: '高级 Skill 开发', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">多文件 Skill 结构</h3>
+        <pre class="code-block">my-advanced-skill/
+├── SKILL.md            # 核心定义
+├── instructions/       # 指令文件
+│   ├── system.md       # 系统指令
+│   └── user.md         # 用户指令
+├── tools/              # 自定义工具
+│   └── my-tool.ts
+└── assets/             # 资源文件
+    ├── examples.md     # 示例
+    └── templates/      # 输出模板</pre>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">Skill 链式调用</h4>
+        <pre class="code-block"># SKILL.md 中使用 chain 调用其他 Skill
+chain:
+  - skill: code-review
+    input: ${file}
+  - skill: test-generator
+    input: ${output}</pre>
+      `},
+      { id: 'c4s5', title: '性能优化', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">Token 管理策略</h3>
+        <ul class="content-ul">
+          <li>使用 <code class="inline-code">#file:path</code> 精确引用文件，避免全量读取</li>
+          <li>大型项目启用 <code class="inline-code">.claudeignore</code> 排除非必要文件</li>
+          <li>分步骤处理大型任务，避免上下文溢出</li>
+        </ul>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">上下文窗口策略</h4>
+        <div class="content-table-wrapper overflow-x-auto">
+          <table class="content-table">
+            <thead><tr><th>策略</th><th>适用场景</th><th>说明</th></tr></thead>
+            <tbody>
+              <tr><td>分段处理</td><td>大型重构</td><td>拆分为多个独立任务</td></tr>
+              <tr><td>增量式</td><td>持续开发</td><td>每次聚焦一个模块</td></tr>
+              <tr><td>聚焦模式</td><td>Bug 修复</td><td>只加载相关文件</td></tr>
+            </tbody>
+          </table>
+        </div>
+      `},
+      { id: 'c4s6', title: '安全实践', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">安全最佳实践</h3>
+        <ul class="content-ul">
+          <li>不在对话中暴露 API Key 和密码</li>
+          <li>使用环境变量管理敏感信息</li>
+          <li>审核 Claude Code 建议的代码变更</li>
+          <li>配置权限控制限制工具使用范围</li>
+        </ul>
+      `}
+    ]
+  },
+  {
+    id: 5, title: '最佳实践', icon: 'star', color: 'rose',
+    subs: [
+      { id: 'c5s1', title: '效率提升技巧', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">日常开发流</h3>
+        <pre class="code-block">早上: 查看 Issue → Claude 分析 → 确定优先顺序
+上午: 编码实现 → Claude 代码审查 → 修正
+下午: Claude 生成测试 → 运行验证 → 提交
+晚上: Claude 生成 CHANGELOG → 总结当日</pre>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">Prompt 编写技巧</h4>
+        <div class="content-table-wrapper overflow-x-auto">
+          <table class="content-table">
+            <thead><tr><th>技巧</th><th>说明</th><th>示例</th></tr></thead>
+            <tbody>
+              <tr><td>具体化</td><td>明确任务范围和约束</td><td><code class="inline-code">给 src/auth.ts 添加 JWT 验证中间件</code></td></tr>
+              <tr><td>分步骤</td><td>复杂任务拆解表达</td><td><code class="inline-code">先分析当前代码，再提出优化方案</code></td></tr>
+              <tr><td>给上下文</td><td>提供足够的背景信息</td><td><code class="inline-code">#file:package.json 中依赖版本是否过时？</code></td></tr>
+              <tr><td>指定格式</td><td>明确输出格式要求</td><td><code class="inline-code">以表格形式列出所有 API 端点</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      `},
+      { id: 'c5s2', title: '代码审查流程', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">审查流程</h3>
+        <ol class="content-ol">
+          <li><strong>提交前</strong>：Claude 自动审查变更代码</li>
+          <li><strong>审查关注点</strong>：
+            <ul class="content-ul">
+              <li>逻辑正确性</li>
+              <li>边界条件处理</li>
+              <li>安全隐患</li>
+              <li>代码风格一致性</li>
+            </ul>
+          </li>
+          <li><strong>审查结论</strong>：确认 / 需修改 / 拒绝</li>
+        </ol>
+      `},
+      { id: 'c5s3', title: '文档维护', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">自动文档生成</h3>
+        <ul class="content-ul">
+          <li>使用 Claude 自动生成代码注释和 API 文档</li>
+          <li>保持 README 与代码同步更新</li>
+          <li>利用 CHANGELOG.md 记录版本变更</li>
+        </ul>
+      `},
+      { id: 'c5s4', title: '团队协作', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">统一配置</h3>
+        <pre class="code-block">// .claude/settings.json（项目级）
+{
+  "language": "zh-CN",
+  "customInstructions": "遵循团队的 TypeScript 编码规范",
+  "hooks": {
+    "pre-commit": ["npm run lint:fix"]
+  }
+}</pre>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">代码规范强制执行</h4>
+        <ul class="content-ul">
+          <li>在项目根目录维护 <code class="inline-code">.claude/settings.json</code></li>
+          <li>通过 Hook 实现提交前自动检查</li>
+          <li>团队成员共享同一套配置文件</li>
+        </ul>
+      `},
+      { id: 'c5s5', title: '配置建议', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">推荐配置</h3>
+        <pre class="code-block">{
+  "language": "zh-CN",
+  "customInstructions": "",
+  "hooks": {
+    "pre-commit": ["npm run lint"]
+  }
+}</pre>
+        <h4 class="font-medium text-gray-700 mt-4 mb-2">推荐 .claudeignore</h4>
+        <pre class="code-block">node_modules/
+dist/
+build/
+.git/
+*.log
+.DS_Store</pre>
+      `},
+      { id: 'c5s6', title: '进阶学习路径', content: `
+        <h3 class="text-lg font-semibold text-gray-800 mb-3">学习路线</h3>
+        <ol class="content-ol">
+          <li>掌握基础 — 完成 01-03 章节</li>
+          <li>学习自动化 — 04-高级技巧</li>
+          <li>实战项目 — 用 Claude Code 完整开发一个项目</li>
+          <li>团队推广 — 制定团队使用规范</li>
+        </ol>
+      `}
+    ]
+  }
+];
+
+// ========== 练习环节数据 ==========
+const PRACTICES = {
+    'c1s1': {
+        title: '练习：安装Claude Code',
+        instruction: '打开终端，输入安装命令。模拟运行如下命令：',
+        command: 'npm install -g @anthropic-ai/claude-code',
+        mockOutput: 'npm install -g @anthropic-ai/claude-code\n\nadded 152 packages in 3.2s\n\n? 检测到项目目录，是否初始化 Claude Code 配置？(Y/n)',
+        confirmMessage: '安装成功！可以继续学习基础操作了。'
+    },
+    'c1s2': {
+        title: '练习：基础对话操作',
+        instruction: '在Claude Code面板输入以下指令，观察返回结果：',
+        command: '解释这段代码\n\nfunction fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n-1) + fibonacci(n-2);\n}',
+        mockOutput: 'Claude Code分析中...\n\n这是一个计算斐波那契数列第n项的递归函数。\n\n问题：递归方式时间复杂度为O(2^n)，当n较大时效率极低。\n\n优化建议：使用动态规划或尾递归优化。',
+        confirmMessage: '很好！你已经掌握了基础对话操作。'
+    },
+    'c2s1': {
+        title: '练习：上下文对话模式',
+        instruction: '练习使用 #file: 语法引用文件进行上下文对话：',
+        command: '#file:src/auth.ts 中的登录逻辑有安全漏洞吗？',
+        mockOutput: 'Claude Code分析文件 src/auth.ts 中...\n\n发现以下潜在安全问题：\n\n1. 密码以明文形式传输（缺少HTTPS）\n2. 未使用参数化查询，存在SQL注入风险\n3. Token未设置过期时间\n\n建议修复方案：\n- 启用HTTPS\n- 使用参数化查询或ORM\n- 添加JWT过期机制',
+        confirmMessage: '做得很好！上下文对话让你能精准定位问题。'
+    },
+    'c2s2': {
+        title: '练习：代码编辑指令',
+        instruction: '尝试向Claude发送编辑指令，修改指定函数：',
+        command: '优化 utils.ts 中的 formatDate 函数，支持更多日期格式',
+        mockOutput: 'Claude Code正在分析 utils.ts...\n\n修改完成！以下是优化后的代码：\n\nfunction formatDate(date, format = "YYYY-MM-DD") {\n  const d = new Date(date);\n  const map = {\n    "YYYY": d.getFullYear(),\n    "MM": String(d.getMonth() + 1).padStart(2, "0"),\n    "DD": String(d.getDate()).padStart(2, "0"),\n  };\n  return format.replace(/YYYY|MM|DD/g, key => map[key]);\n}\n\n增强特性：\n- 支持自定义格式\n- 兼容多种输入类型',
+        confirmMessage: '代码编辑功能掌握！你可以要求Claude进行任何代码修改。'
+    },
+    'c3s2': {
+        title: '练习：编写SKILL.md',
+        instruction: '创建一个简单的 Skill 定义文件，理解SKILL.md的基本结构：',
+        command: 'claude skill create my-first-skill\n\n# 然后编辑 SKILL.md 填入以下内容：\n---\nname: my-first-skill\ndescription: 我的第一个Skill\nversion: 1.0.0\n---\n\n# 角色定位\n\n你是一位编程助手...',
+        mockOutput: 'Skill "my-first-skill" 创建成功！\n\n文件结构：\nmy-first-skill.skill/\n├── SKILL.md\n├── assets/\n└── templates/\n\nSKILL.md 已创建，包含基本的角色定位模板。\n\n运行 claude skill load my-first-skill 加载使用。',
+        confirmMessage: 'Skill创建成功！你可以根据自己的需求定制更多Skill。'
+    },
+    'c4s1': {
+        title: '练习：批量操作',
+        instruction: '学习如何向Claude发送批量文件处理指令：',
+        command: '给 src/components/ 下所有 .tsx 文件添加 import React from \'react\'',
+        mockOutput: 'Claude Code正在扫描 src/components/ 目录...\n\n找到 5 个 .tsx 文件：\n- Button.tsx\n- Card.tsx\n- Header.tsx\n- Footer.tsx\n- Modal.tsx\n\n正在批量添加 import React from "react"...\n\n✅ Button.tsx - 已更新\n✅ Card.tsx - 已更新\n✅ Header.tsx - 已更新\n✅ Footer.tsx - 已更新\n✅ Modal.tsx - 已更新\n\n全部处理完成！',
+        confirmMessage: '批量操作完成！善用批量指令可以大幅提升效率。'
+    },
+    'c5s1': {
+        title: '练习：Prompt编写技巧',
+        instruction: '尝试编写一个高质量的Prompt，包含具体化、分步骤、给上下文、指定格式四个要素：',
+        command: '#file:package.json 中以表格形式列出所有依赖包，标注哪些已过时，并按重要程度排序',
+        mockOutput: 'Claude Code分析 package.json...\n\n| 包名 | 当前版本 | 最新版本 | 状态 | 重要程度 |\n|------|---------|---------|------|--------|\n| react | 18.2.0 | 18.3.1 | 可升级 | 核心依赖 |\n| axios | 1.6.0 | 1.7.2 | 可升级 | 核心依赖 |\n| lodash | 4.17.21 | 4.17.21 | 已最新 | 重要 |\n| moment | 2.29.4 | 2.30.1 | 可升级 | 建议替换 |\n\n建议：moment 已不再维护，建议替换为 dayjs。',
+        confirmMessage: 'Prompt编写技能已掌握！好的Prompt是高效使用Claude的关键。'
+    }
+};
+
+// ========== 状态管理 ==========
+const STORAGE_KEY = 'claude_code_tutorial_progress';
+const CURRENT_PAGE_KEY = 'claude_code_tutorial_page';
+
+function getProgress() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+
+function saveProgress(progress) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+  updateProgressUI();
+}
+
+function getCurrentPage() {
+  return localStorage.getItem(CURRENT_PAGE_KEY) || 'welcome';
+}
+
+function setCurrentPage(page) {
+  localStorage.setItem(CURRENT_PAGE_KEY, page);
+}
+
+// ========== 目录树渲染 ==========
+function renderNav() {
+  const nav = document.getElementById('chapterNav');
+  const progress = getProgress();
+  let html = '';
+  let totalSubs = 0;
+  let doneSubs = 0;
+
+  CHAPTERS.forEach(ch => {
+    ch.subs.forEach(s => {
+      totalSubs++;
+      if (progress[s.id]) doneSubs++;
+    });
+
+    const chapterDone = ch.subs.every(s => progress[s.id]);
+    const chapterPartial = ch.subs.some(s => progress[s.id]);
+    html += `
+      <div class="mb-1">
+        <button class="chapter-toggle w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg hover:bg-gray-100 text-left ${chapterDone ? 'text-emerald-700 font-medium' : 'text-gray-700'}" onclick="scrollToChapter(${ch.id})">
+          <i class="fa fa-${ch.icon} text-${ch.color}-500 w-4 text-center"></i>
+          <span class="flex-1">${ch.title}</span>
+          <span class="text-xs text-gray-400">${ch.subs.length}</span>
+          <i class="fa fa-check-circle ${chapterDone ? 'text-emerald-400' : chapterPartial ? 'text-amber-300' : 'text-gray-300'}"></i>
+        </button>
+      </div>`;
+  });
+
+  nav.innerHTML = html;
+  document.getElementById('progressPercent').textContent = totalSubs > 0 ? Math.round(doneSubs / totalSubs * 100) + '%' : '0%';
+  document.getElementById('sidebarProgress').style.width = totalSubs > 0 ? (doneSubs / totalSubs * 100) + '%' : '0%';
+}
+
+// ========== 内容渲染 ==========
+function renderChapter(chapter) {
+  const container = document.getElementById('chapterContent');
+  const progress = getProgress();
+  let html = '';
+
+  html += `<div class="mb-8">
+    <div class="flex items-center gap-3 mb-2">
+      <div class="w-10 h-10 bg-${chapter.color}-100 rounded-xl flex items-center justify-center">
+        <i class="fa fa-${chapter.icon} text-${chapter.color}-600"></i>
+      </div>
+      <div>
+        <h2 class="text-2xl font-bold text-gray-800">${chapter.title}</h2>
+        <p class="text-sm text-gray-400">共 ${chapter.subs.length} 个知识点</p>
+      </div>
+    </div>
+  </div>`;
+
+  chapter.subs.forEach((sub, idx) => {
+    const isDone = progress[sub.id];
+    html += `
+      <div class="subsection mb-4 bg-white border border-gray-200 rounded-xl overflow-hidden" data-sub="${sub.id}">
+        <button class="subsection-title w-full flex items-center justify-between p-4 text-left" onclick="toggleSubsection(this, '${sub.id}')">
+          <div class="flex items-center gap-3">
+            <span class="w-6 h-6 rounded-full ${isDone ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'} flex items-center justify-center text-xs font-bold">${idx+1}</span>
+            <span class="font-medium text-gray-800">${sub.title}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="mark-done-btn text-xs px-2 py-1 rounded ${isDone ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-400 hover:bg-emerald-50 hover:text-emerald-600'}" onclick="event.stopPropagation(); toggleDone('${sub.id}')">
+              <i class="fa ${isDone ? 'fa-check-circle' : 'fa-circle-o'}"></i> ${isDone ? '已掌握' : '标为已掌握'}
+            </button>
+            <i class="fa fa-chevron-down text-gray-400 transition-transform"></i>
+          </div>
+        </button>
+        <div class="accordion-content overflow-hidden ${isDone ? '' : 'hidden'}" style="max-height:${isDone ? '2000px' : '0'}">
+          <div class="px-4 pb-4 border-t border-gray-100 pt-3">
+            ${sub.content}
+            ${getPracticeHtml(sub.id)}
+          </div>
+        </div>
+      </div>`;
+  });
+
+  // 章节导航
+  html += `<div class="flex justify-between mt-6">`;
+  const prevCh = CHAPTERS.find(c => c.id === chapter.id - 1);
+  const nextCh = CHAPTERS.find(c => c.id === chapter.id + 1);
+  if (prevCh) {
+    html += `<button class="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-700" onclick="scrollToChapter(${prevCh.id})"><i class="fa fa-arrow-left"></i> 上一章：${prevCh.title}</button>`;
+  } else {
+    html += `<div></div>`;
+  }
+  if (nextCh) {
+    html += `<button class="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700" onclick="scrollToChapter(${nextCh.id})">下一章：${nextCh.title} <i class="fa fa-arrow-right"></i></button>`;
+  } else {
+    html += `<div></div>`;
+  }
+  html += `</div>`;
+
+  container.innerHTML = html;
+}
+
+// ========== 交互函数 ==========
+function toggleSubsection(btn, subId) {
+  const content = btn.nextElementSibling;
+  const isHidden = content.classList.contains('hidden');
+
+  if (isHidden) {
+    content.classList.remove('hidden');
+    content.style.maxHeight = content.scrollHeight + 'px';
+    btn.querySelector('.fa-chevron-down').style.transform = 'rotate(180deg)';
+  } else {
+    content.classList.add('hidden');
+    content.style.maxHeight = '0';
+    btn.querySelector('.fa-chevron-down').style.transform = 'rotate(0deg)';
+  }
+}
+
+function toggleDone(subId) {
+  const progress = getProgress();
+  if (progress[subId]) {
+    delete progress[subId];
+  } else {
+    progress[subId] = true;
+    // 自动展开
+    const subsection = document.querySelector(`[data-sub="${subId}"]`);
+    if (subsection) {
+      const btn = subsection.querySelector('.subsection-title');
+      const content = btn.nextElementSibling;
+      if (content && content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        content.style.maxHeight = content.scrollHeight + 'px';
+        btn.querySelector('.fa-chevron-down').style.transform = 'rotate(180deg)';
+      }
+    }
+  }
+  saveProgress(progress);
+  // 重新渲染当前章节
+  const currentChapterId = parseInt(localStorage.getItem('current_chapter') || '1');
+  const chapter = CHAPTERS.find(c => c.id === currentChapterId);
+  if (chapter) renderChapter(chapter);
+  renderNav();
+}
+
+function scrollToChapter(chapterId) {
+  localStorage.setItem('current_chapter', chapterId);
+  showSection('chapter');
+  const chapter = CHAPTERS.find(c => c.id === chapterId);
+  if (chapter) {
+    renderChapter(chapter);
+    document.getElementById('mainContent').scrollTop = 0;
+  }
+  // 移动端关闭侧边栏
+  if (window.innerWidth < 768) toggleSidebar();
+}
+
+function openTab(tab) {
+  showSection(tab);
+  if (window.innerWidth < 768) toggleSidebar();
+}
+
+function showSection(section) {
+  // 隐藏所有页面
+  document.querySelectorAll('.page-section').forEach(el => el.classList.add('hidden'));
+  document.getElementById('chapterContent').classList.add('hidden');
+
+  if (section === 'chapter') {
+    document.getElementById('chapterContent').classList.remove('hidden');
+    setCurrentPage('chapter');
+  } else if (section === 'welcome') {
+    document.getElementById('page-welcome').classList.remove('hidden');
+    setCurrentPage('welcome');
+  } else if (section === 'shortcuts') {
+    document.getElementById('page-shortcuts').classList.remove('hidden');
+    setCurrentPage('shortcuts');
+  } else if (section === 'faq') {
+    document.getElementById('page-faq').classList.remove('hidden');
+    setCurrentPage('faq');
+  } else if (section === 'skillwizard') {
+    document.getElementById('page-skillwizard').classList.remove('hidden');
+    setCurrentPage('skillwizard');
+  } else if (section === 'videos') {
+    document.getElementById('page-videos').classList.remove('hidden');
+    setCurrentPage('videos');
+    loadCustomVideos();
+  }
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  sidebar.classList.toggle('sidebar-open');
+  overlay.classList.toggle('hidden');
+}
+
+// ========== FAQ ==========
+function toggleFaq(btn) {
+  const answer = btn.nextElementSibling;
+  const icon = btn.querySelector('.fa-chevron-down');
+  const isHidden = answer.classList.contains('hidden');
+  // 关闭其他
+  document.querySelectorAll('.faq-answer').forEach(el => {
+    if (el !== answer) {
+      el.classList.add('hidden');
+      el.previousElementSibling.querySelector('.fa-chevron-down').style.transform = 'rotate(0deg)';
+    }
+  });
+  if (isHidden) {
+    answer.classList.remove('hidden');
+    icon.style.transform = 'rotate(180deg)';
+  } else {
+    answer.classList.add('hidden');
+    icon.style.transform = 'rotate(0deg)';
+  }
+}
+
+// ========== Skill 向导 ==========
+let selectedSkillType = '';
+
+function selectSkillType(el, type) {
+  document.querySelectorAll('.skill-type-card').forEach(c => {
+    c.classList.remove('border-indigo-400', 'bg-indigo-50');
+    c.classList.add('border-gray-200');
+  });
+  el.classList.remove('border-gray-200');
+  el.classList.add('border-indigo-400', 'bg-indigo-50');
+  selectedSkillType = type;
+  const btn = document.getElementById('step1NextBtn');
+  btn.disabled = false;
+  btn.className = 'px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium';
+  btn.textContent = '下一步';
+}
+
+function wizardNextStep() {
+  if (!selectedSkillType) return;
+  document.getElementById('wizardStep1').classList.add('hidden');
+  document.getElementById('wizardStep2').classList.remove('hidden');
+  // 更新步骤指示器
+  updateStepIndicator(2);
+  // 自动填充
+  const typeNames = {
+    language: '语言专家',
+    framework: '框架专家',
+    debug: '调试专家',
+    architect: '架构师',
+    reviewer: '审阅者',
+    custom: '自定义'
+  };
+  const typeDescriptions = {
+    language: '编程语言指导与优化',
+    framework: '框架使用指导与最佳实践',
+    debug: 'Bug 定位与修复',
+    architect: '系统设计与架构评审',
+    reviewer: '代码审查与质量提升',
+    custom: '自定义 Skill'
+  };
+  document.getElementById('skillNameInput').placeholder = `例：${selectedSkillType}-expert`;
+  document.getElementById('skillDescInput').placeholder = `例：${typeDescriptions[selectedSkillType] || '自定义 Skill'}`;
+  document.getElementById('skillRoleInput').placeholder = `例：你是一位专业的${typeNames[selectedSkillType] || 'AI 助手'}...`;
+}
+
+// "下一步" 按钮点击
+document.addEventListener('DOMContentLoaded', function() {
+  const nextBtn = document.getElementById('step1NextBtn');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', wizardNextStep);
+  }
+});
+
+function wizardPrevStep() {
+  const step2 = document.getElementById('wizardStep2');
+  const step3 = document.getElementById('wizardStep3');
+  if (!step3.classList.contains('hidden')) {
+    step3.classList.add('hidden');
+    step2.classList.remove('hidden');
+    updateStepIndicator(2);
+  } else if (!step2.classList.contains('hidden')) {
+    step2.classList.add('hidden');
+    document.getElementById('wizardStep1').classList.remove('hidden');
+    updateStepIndicator(1);
+  }
+}
+
+function updateStepIndicator(step) {
+  for (let i = 1; i <= 3; i++) {
+    const indicator = document.getElementById(`step${i}Indicator`);
+    const label = document.getElementById(`step${i}Label`);
+    if (i <= step) {
+      indicator.className = 'step-indicator bg-indigo-600 text-white';
+      label.className = `ml-2 text-sm font-medium text-indigo-600`;
+    } else {
+      indicator.className = 'step-indicator bg-gray-300 text-gray-500';
+      label.className = 'ml-2 text-sm font-medium text-gray-400';
+    }
+  }
+}
+
+function wizardGenerate() {
+  const name = document.getElementById('skillNameInput').value.trim() || 'my-skill';
+  const desc = document.getElementById('skillDescInput').value.trim() || '自定义 Skill 描述';
+  const role = document.getElementById('skillRoleInput').value.trim() || '你是一位专业的 AI 编程助手。';
+  const workflow = document.getElementById('skillWorkflowInput').value.trim() || '1. 分析用户需求\n2. 提出解决方案\n3. 生成代码\n4. 验证结果';
+
+  const yaml = `---
+name: ${name}
+description: ${desc}
+version: 1.0.0
+model: claude-4
+---
+
+# 角色定位
+
+${role}
+
+## 触发条件
+
+当用户请求与 ${desc} 相关的任务时激活。
+
+## 工作流程
+
+${workflow}
+
+## 输出格式
+
+- 提供清晰的解释和代码示例
+- 说明关键决策的原因
+- 指出潜在的风险和注意事项
+
+## 约束
+
+- 遵循最佳实践和安全规范
+- 优先使用项目现有代码风格
+- 不修改未经确认的文件`;
+
+  document.getElementById('skillOutput').textContent = yaml;
+  document.getElementById('wizardStep2').classList.add('hidden');
+  document.getElementById('wizardStep3').classList.remove('hidden');
+  updateStepIndicator(3);
+
+  // 自动填充提示
+  const nameInput = document.getElementById('skillNameInput');
+  const descInput = document.getElementById('skillDescInput');
+  if (!nameInput.value) nameInput.value = name;
+  if (!descInput.value) descInput.value = desc;
+}
+
+function copySkillOutput() {
+  const text = document.getElementById('skillOutput').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('#wizardStep3 button:last-child');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fa fa-check"></i> 已复制';
+    setTimeout(() => { btn.innerHTML = orig; }, 2000);
+  }).catch(() => {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.querySelector('#wizardStep3 button:last-child');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fa fa-check"></i> 已复制';
+    setTimeout(() => { btn.innerHTML = orig; }, 2000);
+  });
+}
+
+// ========== 搜索功能 ==========
+function handleSearch(query) {
+  const clearBtn = document.getElementById('searchClearBtn');
+  if (query.trim()) {
+    clearBtn.classList.remove('hidden');
+    performSearch(query.trim());
+  } else {
+    clearBtn.classList.add('hidden');
+    clearSearchHighlights();
+  }
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClearBtn').classList.add('hidden');
+  clearSearchHighlights();
+}
+
+function clearSearchHighlights() {
+  document.querySelectorAll('.search-highlight').forEach(el => {
+    el.replaceWith(el.textContent);
+  });
+}
+
+function performSearch(query) {
+  // 先清除旧高亮
+  clearSearchHighlights();
+
+  if (!query) return;
+
+  const contentArea = document.getElementById('mainContent');
+  const textNodes = [];
+
+  // 获取所有文本节点（排除 script/style）
+  function walk(node) {
+    if (node.nodeType === 3) {
+      textNodes.push(node);
+    } else if (node.nodeType === 1 && !['SCRIPT', 'STYLE', 'PRE', 'CODE', 'KBD'].includes(node.tagName)) {
+      node.childNodes.forEach(walk);
+    }
+  }
+  walk(contentArea);
+
+  textNodes.forEach(node => {
+    const text = node.textContent;
+    if (!text) return;
+    const lower = text.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    let idx = lower.indexOf(lowerQuery);
+    if (idx === -1) return;
+
+    const fragment = document.createDocumentFragment();
+    let lastIdx = 0;
+    while (idx !== -1) {
+      if (idx > lastIdx) {
+        fragment.appendChild(document.createTextNode(text.slice(lastIdx, idx)));
+      }
+      const span = document.createElement('span');
+      span.className = 'search-highlight';
+      span.textContent = text.slice(idx, idx + query.length);
+      fragment.appendChild(span);
+      lastIdx = idx + query.length;
+      idx = lower.indexOf(lowerQuery, lastIdx);
+    }
+    if (lastIdx < text.length) {
+      fragment.appendChild(document.createTextNode(text.slice(lastIdx)));
+    }
+    node.parentNode.replaceChild(fragment, node);
+  });
+}
+
+// ========== 阅读进度 ==========
+function updateReadingProgress() {
+  const main = document.getElementById('mainContent');
+  const scrollTop = main.scrollTop;
+  const scrollHeight = main.scrollHeight - main.clientHeight;
+  const progress = scrollHeight > 0 ? (scrollTop / scrollHeight * 100) : 0;
+  document.getElementById('progressBar').style.width = Math.min(progress, 100) + '%';
+}
+
+// ========== 进度 UI 更新 ==========
+function updateProgressUI() {
+  renderNav();
+  updatePracticeUI();
+}
+
+// ========== 练习环节 ==========
+const PRACTICE_STORAGE_KEY = 'claude_code_tutorial_practice';
+
+function getPracticeProgress() {
+  try { return JSON.parse(localStorage.getItem(PRACTICE_STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+
+function savePracticeProgress(progress) {
+  localStorage.setItem(PRACTICE_STORAGE_KEY, JSON.stringify(progress));
+  updatePracticeUI();
+}
+
+function getPracticeHtml(subId) {
+  const practice = PRACTICES[subId];
+  if (!practice) return '';
+  const practiceProgress = getPracticeProgress();
+  const isDone = practiceProgress[subId];
+
+  return `
+    <div class="mt-6 pt-4 border-t border-gray-200 practice-section" data-practice="${subId}">
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="font-semibold text-amber-700 text-sm"><i class="fa fa-pencil-square-o mr-1 text-amber-500"></i>${practice.title}</h4>
+        <span class="text-xs px-2 py-0.5 rounded-full ${isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}">${isDone ? '已完成' : '未完成'}</span>
+      </div>
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+        <p class="text-xs text-amber-800">${practice.instruction}</p>
+      </div>
+      <div class="bg-gray-900 text-gray-100 rounded-lg p-3 text-xs font-mono mb-3 overflow-x-auto whitespace-pre-wrap">${practice.command}</div>
+      <textarea class="practice-input w-full border border-gray-300 rounded-lg p-3 text-sm font-mono focus:ring-2 focus:ring-amber-400 outline-none" rows="3" placeholder="在此输入你的练习命令..." ${isDone ? 'disabled' : ''}>${isDone ? practice.command : ''}</textarea>
+      <div class="flex items-center gap-2 mt-2">
+        <button onclick="runPractice('${subId}')" class="bg-amber-600 text-white px-4 py-1.5 rounded text-xs hover:bg-amber-700 ${isDone ? 'opacity-50 cursor-not-allowed' : ''}" ${isDone ? 'disabled' : ''}><i class="fa fa-play mr-1"></i>运行</button>
+        <button onclick="resetPractice('${subId}')" class="text-xs text-gray-400 hover:text-gray-600"><i class="fa fa-refresh mr-1"></i>重置</button>
+        ${isDone ? `<span class="text-xs text-emerald-600"><i class="fa fa-check-circle mr-1"></i>练习已完成</span>` : ''}
+      </div>
+      <div id="practiceOutput_${subId}" class="mt-2 hidden">
+        <div class="bg-gray-900 text-green-400 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap max-h-40 overflow-y-auto" id="practiceOutputText_${subId}"></div>
+        <div class="mt-2 flex items-center gap-2">
+          <button onclick="confirmPractice('${subId}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700"><i class="fa fa-check mr-1"></i>标记完成</button>
+          <span class="text-xs text-gray-400">检查输出结果，确认理解后点击「标记完成」</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function runPractice(subId) {
+  const practice = PRACTICES[subId];
+  if (!practice) return;
+  const outputEl = document.getElementById('practiceOutput_' + subId);
+  const outputText = document.getElementById('practiceOutputText_' + subId);
+  outputText.textContent = practice.mockOutput;
+  outputEl.classList.remove('hidden');
+}
+
+function confirmPractice(subId) {
+  const practiceProgress = getPracticeProgress();
+  practiceProgress[subId] = true;
+  savePracticeProgress(practiceProgress);
+  // 重新渲染当前章节，更新UI
+  const currentChapterId = parseInt(localStorage.getItem('current_chapter') || '1');
+  const chapter = CHAPTERS.find(c => c.id === currentChapterId);
+  if (chapter) renderChapter(chapter);
+  updatePracticeUI();
+}
+
+function resetPractice(subId) {
+  if (!confirm('确定要重置该练习进度吗？重置后需要重新完成练习。')) return;
+  const practiceProgress = getPracticeProgress();
+  delete practiceProgress[subId];
+  savePracticeProgress(practiceProgress);
+  const outputEl = document.getElementById('practiceOutput_' + subId);
+  if (outputEl) outputEl.classList.add('hidden');
+  const input = document.querySelector(`[data-practice="${subId}"] .practice-input`);
+  if (input) { input.value = ''; input.disabled = false; }
+  // 重新渲染章节
+  const currentChapterId = parseInt(localStorage.getItem('current_chapter') || '1');
+  const chapter = CHAPTERS.find(c => c.id === currentChapterId);
+  if (chapter) renderChapter(chapter);
+}
+
+// ========== 视频管理 ==========
+const VIDEO_STORAGE_KEY = 'claude_code_tutorial_videos';
+
+function getCustomVideos() {
+  try { return JSON.parse(localStorage.getItem(VIDEO_STORAGE_KEY) || '[]'); } catch { return []; }
+}
+
+function saveCustomVideos(videos) {
+  localStorage.setItem(VIDEO_STORAGE_KEY, JSON.stringify(videos));
+}
+
+function loadCustomVideos() {
+  const videos = getCustomVideos();
+  const list = document.getElementById('videoList');
+  // 保留原有示例视频
+  const existingVideos = list.querySelectorAll('.video-panel');
+  // 清除用户添加的视频
+  existingVideos.forEach((panel, idx) => {
+    if (idx >= 3) panel.remove(); // 保留前3个示例
+  });
+  // 添加用户自定义视频
+  videos.forEach(v => {
+    const panel = document.createElement('div');
+    panel.className = 'video-panel';
+    panel.innerHTML = `
+      <div class="video-header">
+        <span class="font-medium text-gray-700"><i class="fa fa-${v.icon} text-${v.color}-500 mr-2"></i>${v.title}</span>
+        <a href="https://www.bilibili.com/video/${v.bvid}" target="_blank" class="video-link"><i class="fa fa-external-link mr-1"></i>B站原链接</a>
+      </div>
+      <div class="video-container">
+        <iframe class="video-embed" src="//player.bilibili.com/player.html?bvid=${v.bvid}&page=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+      </div>
+    `;
+    list.appendChild(panel);
+  });
+}
+
+function openAddVideoModal() {
+  document.getElementById('addVideoModal').classList.remove('hidden');
+}
+
+function closeAddVideoModal() {
+  document.getElementById('addVideoModal').classList.add('hidden');
+  document.getElementById('videoBvidInput').value = '';
+  document.getElementById('videoTitleInput').value = '';
+}
+
+function addVideo() {
+  const bvid = document.getElementById('videoBvidInput').value.trim();
+  const title = document.getElementById('videoTitleInput').value.trim();
+  const icon = document.getElementById('videoChapterInput').value;
+  if (!bvid || !title) {
+    alert('请填写视频BV号和标题');
+    return;
+  }
+  const iconColors = {
+    'rocket': 'indigo',
+    'cogs': 'emerald',
+    'puzzle-piece': 'amber',
+    'flask': 'purple',
+    'star': 'rose'
+  };
+  const videos = getCustomVideos();
+  videos.push({ bvid, title, icon, color: iconColors[icon] || 'gray' });
+  saveCustomVideos(videos);
+  closeAddVideoModal();
+  loadCustomVideos();
+  showToast('视频添加成功');
+}
+
+function showToast(msg) {
+  const existing = document.querySelector('.toast-msg');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'toast-msg fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg text-sm z-50';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2000);
+}
+
+function updatePracticeUI() {
+  const practiceProgress = getPracticeProgress();
+  const total = Object.keys(PRACTICES).length;
+  const done = Object.keys(PRACTICES).filter(id => practiceProgress[id]).length;
+  const pct = total > 0 ? Math.round(done / total * 100) : 0;
+  document.getElementById('practiceProgressText').textContent = done + '/' + total;
+  document.getElementById('sidebarPracticeProgress').style.width = pct + '%';
+}
+
+function resetAllPractice() {
+  if (confirm('确定要重置所有练习进度吗？')) {
+    localStorage.removeItem(PRACTICE_STORAGE_KEY);
+    const currentChapterId = parseInt(localStorage.getItem('current_chapter') || '1');
+    const chapter = CHAPTERS.find(c => c.id === currentChapterId);
+    if (chapter) renderChapter(chapter);
+    updatePracticeUI();
+  }
+}
+
+// ========== 重置进度 ==========
+function resetProgress() {
+  if (confirm('确定要重置所有学习进度吗？')) {
+    localStorage.removeItem(STORAGE_KEY);
+    renderNav();
+    // 重新渲染当前章节
+    const currentChapterId = parseInt(localStorage.getItem('current_chapter') || '1');
+    const chapter = CHAPTERS.find(c => c.id === currentChapterId);
+    if (chapter) renderChapter(chapter);
+  }
+}
+
+// ========== 初始化 ==========
+document.addEventListener('DOMContentLoaded', function() {
+  renderNav();
+  updatePracticeUI();
+
+  // 恢复上次页面
+  const lastPage = getCurrentPage();
+  if (lastPage === 'chapter') {
+    const savedChapter = parseInt(localStorage.getItem('current_chapter') || '1');
+    const chapter = CHAPTERS.find(c => c.id === savedChapter);
+    if (chapter) {
+      scrollToChapter(savedChapter);
+    } else {
+      showSection('welcome');
+    }
+  } else if (['shortcuts', 'faq', 'skillwizard', 'videos'].includes(lastPage)) {
+    openTab(lastPage);
+  } else {
+    showSection('welcome');
+  }
+
+  // 阅读进度监听
+  document.getElementById('mainContent').addEventListener('scroll', updateReadingProgress);
+
+  // 快捷键：Esc 关闭侧边栏
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar.classList.contains('sidebar-open')) {
+        toggleSidebar();
+      }
+    }
+  });
+});
+</script>
+</body>
+</html>
